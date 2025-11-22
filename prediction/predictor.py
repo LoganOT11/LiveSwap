@@ -82,7 +82,7 @@ def predict_live(
                 
                 # Run inference immediately after getting data
                 run_inference()
-            except queue.Empty:
+            except input_audio_queue.Empty:
                 print("Warning: AI Thread starving (No audio received)")
                 continue
 

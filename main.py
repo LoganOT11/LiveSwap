@@ -85,7 +85,7 @@ def main():
     t3.start()
 
     # 3. START AUDIO
-    print(f"🎤 Master Stream started on Device {settings.DEVICE_INDEX}")
+    print(f"Master Stream started on Device {settings.DEVICE_INDEX}")
     def master_callback(indata, frames, time, status):
         mono = np.mean(indata, axis=1)
         audio_feed_fast.put(mono)
