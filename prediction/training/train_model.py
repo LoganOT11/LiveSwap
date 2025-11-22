@@ -9,7 +9,7 @@ from torch.utils.data import DataLoader, random_split
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from training.loader import AdDataset
-from prediction.model_arch import AdDetectorCNN
+from training.model_arch import AdDetectorCNN
 
 # --- CONFIGURATION ---
 from settings import PROCESSED_DATASET_DIR as DATASET_PATH

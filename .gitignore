@@ -1,4 +1,7 @@
-venv/
+.venv/
+dataset/fast_1.0s/
+dataset/main_4.3s/
+dataset/raw_recordings/
 __pycache__/
 prediction/__pycache__/
 prediction/ffmpeg/
