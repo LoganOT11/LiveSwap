@@ -6,6 +6,7 @@ import collections
 import torchaudio
 import queue
 from training.model_arch import AdDetectorCNN
+from settings import SAMPLE_RATE, SMOOTHING_WINDOW
 
 
 def find_stereo_mix():
