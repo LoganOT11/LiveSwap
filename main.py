@@ -4,8 +4,8 @@ import queue
 import cv2
 import sounddevice as sd
 import numpy as np
-import pandas as pd # Required for the Supervisor
-import joblib       # Required to load the .pkl file
+import pandas as pd 
+import joblib 
 import os
 from collections import deque
 
@@ -19,6 +19,10 @@ CONTENT_FOLDER = "content"
 STREAM_DEVICE_INDEX = 1
 SUPERVISOR_PATH = os.path.join(settings.BASE_DIR, "models", "supervisor.pkl")
 
+# Stability Config
+STABILITY_BUFFER_SIZE = int(5.0 / 0.03) # 5 seconds / loop delay (approx)
+STABILITY_LOCK_THRESHOLD = 0.40
+
 def main():
     # 1. LOAD THE SUPERVISOR BRAIN
     print(f"Loading Supervisor Model from {SUPERVISOR_PATH}...")
@@ -27,13 +31,15 @@ def main():
         return
     
     supervisor = joblib.load(SUPERVISOR_PATH)
-    print("Supervisor Loaded.")
+    print("✅ Supervisor Loaded.")
 
-    # 2. SETUP QUEUES (Need history for temporal features)
-    # We increase maxlen to 10 to match the recorder script's memory
+    # 2. SETUP QUEUES
     results_fast = deque(maxlen=10)
     results_slow = deque(maxlen=10)
     results_exp = deque(maxlen=10)
+    
+    # NEW: Stability History for the Final Decision
+    stability_queue = deque(maxlen=STABILITY_BUFFER_SIZE)
 
     audio_feed_fast = queue.Queue()
     audio_feed_slow = queue.Queue()
@@ -41,19 +47,19 @@ def main():
 
     # 3. START AI THREADS
     t1 = threading.Thread(target=predict_live, kwargs={
-        "model_path": settings.MODEL_PATH, "thread_name": "Fast", "chunk_duration": 1.0,
+        "model_path": settings.MODEL_PATH, "chunk_duration": 1.0,
         "prediction_queue": results_fast, "input_audio_queue": audio_feed_fast
     }, daemon=True)
     t1.start()
 
     t2 = threading.Thread(target=predict_live, kwargs={
-        "model_path": settings.MODEL_PATH2, "thread_name": "Main", "chunk_duration": 4.3,
+        "model_path": settings.MODEL_PATH2, "chunk_duration": 4.3,
         "prediction_queue": results_slow, "input_audio_queue": audio_feed_slow
     }, daemon=True)
     t2.start()
 
     t3 = threading.Thread(target=predict_live, kwargs={
-        "model_path": settings.MODEL_PATH2, "thread_name": "Experimental", "chunk_duration": 1.0,
+        "model_path": settings.MODEL_PATH2, "chunk_duration": 1.0,
         "prediction_queue": results_exp, "input_audio_queue": audio_feed_exp
     }, daemon=True)
     t3.start()
@@ -80,18 +86,13 @@ def main():
     try:
         while True:
             # --- A. PREPARE FEATURES ---
-            # We must recreate the EXACT same features we trained the Supervisor on
-            
-            # 1. Snapshot History
             hist_fast = list(results_fast)
             hist_slow = list(results_slow)
             
-            # 2. Get Raw Scores (Default to 0.0)
             s1 = results_fast[-1] if len(results_fast) > 0 else 0.0
             s2 = results_slow[-1] if len(results_slow) > 0 else 0.0
             s3 = results_exp[-1]  if len(results_exp) > 0  else 0.0
 
-            # 3. Calculate Temporal Features
             if len(hist_fast) > 1:
                 fast_avg = np.mean(hist_fast)
                 fast_std = np.std(hist_fast)
@@ -105,31 +106,45 @@ def main():
                 slow_delta = 0.0
 
             # --- B. ASK THE SUPERVISOR ---
-            # Create a DataFrame with the exact column names from training
-            # Columns: ["fast", "slow", "exp", "fast_avg", "fast_std", "fast_delta", "slow_delta"]
             input_data = pd.DataFrame([[
                 s1, s2, s3, 
                 fast_avg, fast_std, fast_delta, 
                 slow_delta
             ]], columns=["fast", "slow", "exp", "fast_avg", "fast_std", "fast_delta", "slow_delta"])
 
-            # Get Prediction (Probability of Ad)
-            # predict_proba returns [[prob_content, prob_ad]] -> we want index 1
+            # Raw Probability from Supervisor (0.0 to 1.0)
             ad_probability = supervisor.predict_proba(input_data)[0][1]
-
-            # --- C. UPDATE VIDEO ---
-            # Use 50% threshold since the Supervisor output is already calibrated
-            frame = video_mgr.get_frame(ad_probability, threshold=0.5)
+            
+            # --- C. STABILITY CHECK (NEW) ---
+            # 1. Add current guess to history
+            stability_queue.append(ad_probability)
+            
+            # 2. Calculate 5-second average
+            if len(stability_queue) > 0:
+                long_term_avg = sum(stability_queue) / len(stability_queue)
+            else:
+                long_term_avg = 0.0
+            
+            # 3. The Decision
+            # If the long-term average is too low (Content), force the probability down
+            # This prevents a 1-second spike from triggering the ad logic
+            final_decision_score = ad_probability
+            
+            if long_term_avg < STABILITY_LOCK_THRESHOLD:
+                # VETO: The system is stable on "Content", ignore spikes
+                final_decision_score = 0.0 
+            
+            # --- D. UPDATE VIDEO ---
+            frame = video_mgr.get_frame(final_decision_score, threshold=0.5)
 
             if frame is not None:
-                # Optional: Draw the Probability on screen
-                text_color = (0, 0, 255) if ad_probability > 0.5 else (0, 255, 0)
-                cv2.putText(frame, f"Ad Prob: {ad_probability:.1%}", (10, 30), 
-                             cv2.FONT_HERSHEY_SIMPLEX, 0.7, text_color, 2)
+                # Debug Info
+                text_color = (0, 0, 255) if final_decision_score > 0.5 else (0, 255, 0)
+                cv2.putText(frame, f"Prob: {ad_probability:.2f} | Avg over {STABILITY_BUFFER_SIZE:.1f}s: {long_term_avg:.2f}", (10, 30), 
+                            cv2.FONT_HERSHEY_SIMPLEX, 0.6, text_color, 2)
                 
                 cv2.imshow("Live Ad Replacer", frame)
 
-            # 5. Handle Exit
             if cv2.waitKey(1) & 0xFF == ord('q'):
                 break
             

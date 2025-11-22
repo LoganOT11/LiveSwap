@@ -89,7 +89,7 @@ class VideoManager:
             # Optional: Resize to ensure consistency
             frame = cv2.resize(frame, (self.width, self.height))
             # Overlay status
-            cv2.putText(frame, f"LIVE GAME ({score:.1%})", (30, self.height - 30), 
+            cv2.putText(frame, f"LIVE GAME", (30, self.height - 30), 
                         cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 0), 2)
         
         return frame
@@ -138,8 +138,9 @@ class VideoManager:
             frame = np.zeros((self.height, self.width, 3), dtype=np.uint8)
 
         # Overlay Status
-        cv2.putText(frame, f"AD BLOCKED ({score:.1%})", (30, 50), 
+        cv2.putText(frame, f"AD BLOCKED", (30, self.height - 30), 
                     cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 0, 255), 2)
+        
         return frame
 
     def release(self):
