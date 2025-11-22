@@ -15,8 +15,10 @@ class AdDataset(Dataset):
             # 1. Get folder where loader.py lives (prediction/training)
             current_dir = os.path.dirname(os.path.abspath(__file__))
             
-            # 2. Build path to default dataset (prediction/training/dataset/fast_1.0s)
-            root_dir = os.path.join(current_dir, "dataset", "fast_1.0s")
+            project_root = os.path.dirname(current_dir)
+            
+            # 2. Build path to default dataset (training/dataset/fast_1.0s)
+            root_dir = os.path.join(project_root, "dataset", "fast_1.0s")
             
             print(f"No path provided. Defaulting to: {root_dir}")
             
