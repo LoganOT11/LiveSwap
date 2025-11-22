@@ -7,6 +7,12 @@ import cv2
 import torchaudio
 from .model_arch import AdDetectorCNN
 
+SAMPLE_RATE=44100
+SMOOTHING_WINDOW=5
+CHUNK_DURATION=1.0
+STEP_DURATION=0.2
+CONFIDENCE_THRESHOLD=0.85
+
 def find_stereo_mix():
     for i, dev in enumerate(sd.query_devices()):
         if "stereo mix" in dev["name"].lower() and dev["max_input_channels"] > 0:
@@ -16,11 +22,6 @@ def find_stereo_mix():
 def predict_live(
     model_path,
     device_index=None,
-    sample_rate=44100,
-    smoothing_window=5,
-    chunk_duration=1.0,
-    step_duration=0.2,
-    confidence_threshold=0.85,
     show_hud=False,
     prediction_queue=None 
 ):
@@ -41,16 +42,16 @@ def predict_live(
 
     # Audio transforms
     mel_transform = torchaudio.transforms.MelSpectrogram(
-        sample_rate=sample_rate, n_fft=2048, hop_length=512, n_mels=64
+        sample_rate=SAMPLE_RATE, n_fft=2048, hop_length=512, n_mels=64
     )
     db_transform = torchaudio.transforms.AmplitudeToDB()
 
     # Buffers
-    raw_buffer_len = int(sample_rate * chunk_duration)
+    raw_buffer_len = int(SAMPLE_RATE * CHUNK_DURATION)
     audio_buffer = collections.deque(maxlen=raw_buffer_len)
-    prediction_buffer = collections.deque(maxlen=smoothing_window)
+    prediction_buffer = collections.deque(maxlen=SMOOTHING_WINDOW)
 
-    def callback(indata, frames, time_info, status):
+    def callback(indata, frames, time_info, status): # unused args are impportant, don't remove
         if status:
             print(status)
         mono = np.mean(indata, axis=1)
@@ -72,7 +73,7 @@ def predict_live(
         cv2.polylines(wave_canvas, [np.array(points)], isClosed=False, color=(0,255,255), thickness=1)
         cv2.line(wave_canvas, (0,50),(UI_WIDTH,50),(50,50,50),1)
 
-        is_ad = score > confidence_threshold
+        is_ad = score > CONFIDENCE_THRESHOLD
         bar_color = (0,0,255) if is_ad else (0,255,0)
         bar_canvas = np.zeros((80, UI_WIDTH, 3), dtype=np.uint8)
         cv2.rectangle(bar_canvas, (0,0),(int(score*UI_WIDTH),80), bar_color, -1)
@@ -86,8 +87,8 @@ def predict_live(
     audio_buffer.extend(np.zeros(raw_buffer_len))
     required_samples = raw_buffer_len
 
-    print(f"Listening on device {device_index}: {device_info['name']}, averaging last {smoothing_window} guesses...")
-    with sd.InputStream(device=device_index, channels=channels, samplerate=sample_rate, callback=callback):
+    print(f"Listening on device {device_index}: {device_info['name']}, averaging last {SMOOTHING_WINDOW} guesses...")
+    with sd.InputStream(device=device_index, channels=channels, samplerate=SAMPLE_RATE, callback=callback):
         while True:
             if len(audio_buffer) < required_samples:
                 time.sleep(0.1)
@@ -112,7 +113,7 @@ def predict_live(
             if prediction_queue is not None:
                 prediction_queue.append(smoothed_score)
 
-            time.sleep(step_duration)
+            time.sleep(STEP_DURATION)
 
 # python -m prediction.predictor
 if __name__ == "__main__":

@@ -9,3 +9,6 @@ BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 RAW_RECORDINGS_DIR = os.path.join(BASE_DIR, "dataset", "raw_recordings")
 PROCESSED_DATASET_DIR = os.path.join(BASE_DIR, "dataset", "fast_1.0s")
 MODEL_PATH = os.path.join(BASE_DIR, "models", "ad_detector.pth")
+
+VLC_PATH = "C:/Program Files (x86)/VideoLAN/vlc.exe"  # Path to VLC.exe
+STREAM_DEVICE_INDEX = 0
