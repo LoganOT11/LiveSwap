@@ -119,7 +119,9 @@ def main():
 
             # --- C. UPDATE VIDEO ---
             # Use 50% threshold since the Supervisor output is already calibrated
-            frame = video_mgr.get_frame(ad_probability, threshold=0.5)
+            # ad_proabilit ? > 0.5 : content
+            
+            frame = video_mgr.get_frame(ad_probability > 0.5)
 
             if frame is not None:
                 # Optional: Draw the Probability on screen
