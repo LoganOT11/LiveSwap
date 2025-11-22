@@ -1,10 +1,10 @@
 import sounddevice as sd
 
-from ..settings import DEVICE_INDEX
+from ..settings import AUDIO_DEVICE_INDEX
 
 try:
-    info = sd.query_devices(DEVICE_INDEX)
-    print(f"Device {DEVICE_INDEX}: {info['name']}")
+    info = sd.query_devices(AUDIO_DEVICE_INDEX)
+    print(f"Device {AUDIO_DEVICE_INDEX}: {info['name']}")
     print(f"Max Output Channels: {info['max_output_channels']}")
     
     if info['max_input_channels'] < 2:

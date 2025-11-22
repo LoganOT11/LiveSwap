@@ -17,7 +17,7 @@ project_root = os.path.dirname(current_dir)
 # 3. Add the root to Python's path
 sys.path.append(project_root)
 
-from settings import DEVICE_INDEX, SAMPLE_RATE, CHANNELS
+from settings import AUDIO_DEVICE_INDEX, SAMPLE_RATE, CHANNELS
 
 # High-performance Queue
 # This holds audio in RAM temporarily so the recording process doesn't lag
@@ -48,7 +48,7 @@ def record_audio(label):
     print(f"\n" + "="*40)
     print(f"RECORDING CLASS: [{label.upper()}]")
     print(f"Saving to: {filepath}")
-    print(f"Device Index: {DEVICE_INDEX}")
+    print(f"Device Index: {AUDIO_DEVICE_INDEX}")
     print(f"Press Ctrl+C to STOP recording")
     print("="*40 + "\n")
 
@@ -59,7 +59,7 @@ def record_audio(label):
                           channels=CHANNELS, subtype='PCM_24') as file:
             
             # Start the microphone listener
-            with sd.InputStream(samplerate=SAMPLE_RATE, device=DEVICE_INDEX,
+            with sd.InputStream(samplerate=SAMPLE_RATE, device=AUDIO_DEVICE_INDEX,
                                 channels=CHANNELS, callback=callback):
                 print("Recording... (Audio is being captured)")
                 while True:
