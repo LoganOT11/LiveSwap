@@ -21,5 +21,5 @@ def print_project_tree(root, prefix="", exclude_dirs=None, include_files=None):
             print_project_tree(path, prefix + extension, exclude_dirs, include_files)
 
 # Example usage
-project_root = "C:/Users/Mathew/Documents/Code/python/AudioLearner"  # Replace with your path
+project_root = "."  # Replace with your path
 print_project_tree(project_root)
