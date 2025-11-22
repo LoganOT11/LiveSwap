@@ -1,3 +1,8 @@
+import cv2
+import os
+import random
+import numpy as np
+
 class VideoManager:
     def __init__(self, content_folder, stream_index=0):
         self.files = [os.path.join(content_folder, f) for f in os.listdir(content_folder) if f.lower().endswith(('.png','.jpg','.mp4','.avi'))]
