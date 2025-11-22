@@ -1,2 +1,4 @@
 .venv/
-dataset/
+dataset/fast_1.0s/
+dataset/main_4.3s/
+dataset/raw_recordings/
