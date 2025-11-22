@@ -8,12 +8,12 @@ from collections import deque
 
 # Import your modules
 from prediction.predictor import predict_live
-from runtime.video_manager import VideoManager
+from display.video_manager import VideoManager
 import settings
 
 # --- CONFIGURATION ---
 CONTENT_FOLDER = "content"
-STREAM_DEVICE_INDEX = 0 # Index for OBS Virtual Camera / Capture Card
+STREAM_DEVICE_INDEX = 1 # Index for OBS Virtual Camera / Capture Card
 AD_THRESHOLD_SUM = 1.0  # Trigger Ad if Sum(Thread1 + Thread2 + Thread3) > 1.0
 
 def main():

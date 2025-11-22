@@ -4,7 +4,7 @@ import random
 import numpy as np
 
 class VideoManager:
-    def __init__(self, content_folder, stream_device_index=0):
+    def __init__(self, content_folder, stream_device_index=1):
         self.content_folder = content_folder
         self.stream_index = stream_device_index
         self.width = 800
