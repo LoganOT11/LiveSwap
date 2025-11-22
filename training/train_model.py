@@ -6,17 +6,21 @@ import torch.optim as optim
 from torch.utils.data import DataLoader, random_split
 
 # Fix path to allow importing from parent folders
+# Adds project root to python path
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from training.loader import AdDataset
+# Adjust these imports to match your specific folder structure if needed
+# Based on your previous tree, it might need to be: from prediction.training.loader import AdDataset
+from training.loader import AdDataset 
 from prediction.model_arch import AdDetectorCNN
 
 # --- CONFIGURATION ---
-from settings import PROCESSED_DATASET_DIR as DATASET_PATH
-from settings import MODEL_PATH as MODEL_SAVE_PATH
+# We removed DATASET_PATH because AdDataset now finds it automatically
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+MODEL_SAVE_PATH = os.path.join(BASE_DIR, "models", "fast_1.0s.pth")
 
 BATCH_SIZE = 16
-EPOCHS = 10 # How many times to loop through the entire dataset
+EPOCHS = 10 
 LEARNING_RATE = 0.001
 
 def train():
@@ -25,11 +29,14 @@ def train():
     print(f"Training on: {device}")
 
     # 2. Prepare Data
-    if not os.path.exists(DATASET_PATH):
-        print(f"Error: Dataset not found at {DATASET_PATH}")
+    # We initialize without arguments. 
+    # AdDataset will automatically look in 'prediction/training/dataset/fast_1.0s'
+    full_dataset = AdDataset()
+    
+    # Safety Check: Ensure files were actually found
+    if len(full_dataset) == 0:
+        print("Error: No files loaded. Check the default path logic in loader.py.")
         return
-
-    full_dataset = AdDataset(DATASET_PATH)
     
     # Split: 80% for Training, 20% for Validation (Testing)
     train_size = int(0.8 * len(full_dataset))
@@ -41,7 +48,7 @@ def train():
 
     # 3. Initialize Model
     model = AdDetectorCNN().to(device)
-    criterion = nn.BCELoss() # Binary Cross Entropy (Standard for Yes/No problems)
+    criterion = nn.BCELoss() 
     optimizer = optim.Adam(model.parameters(), lr=LEARNING_RATE)
 
     # 4. Training Loop
@@ -57,6 +64,7 @@ def train():
 
             # Forward + Backward + Optimize
             outputs = model(specs)
+            # squeeze(1) handles the batch dimension correctly even if batch_size=1
             loss = criterion(outputs.squeeze(1), labels)
             loss.backward()
             optimizer.step()
@@ -75,7 +83,12 @@ def train():
                 total += labels.size(0)
                 correct += (predicted == labels).sum().item()
 
-        accuracy = 100 * correct / total
+        # Prevent division by zero if validation set is empty
+        if total > 0:
+            accuracy = 100 * correct / total
+        else:
+            accuracy = 0.0
+            
         print(f"Epoch {epoch+1}/{EPOCHS} | Loss: {running_loss/len(train_loader):.4f} | Accuracy: {accuracy:.2f}%")
 
     # 6. Save the Brain

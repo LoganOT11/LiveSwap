@@ -6,10 +6,20 @@ from torch.utils.data import Dataset
 import soundfile as sf
 
 class AdDataset(Dataset):
-    def __init__(self, root_dir, target_sample_rate=44100, duration=4.3):
+    def __init__(self, root_dir = None, target_sample_rate=44100, duration=4.3):
         """
         root_dir: Path to the sliced dataset (e.g., "dataset/main_4.3s")
         """
+        
+        if root_dir is None:
+            # 1. Get folder where loader.py lives (prediction/training)
+            current_dir = os.path.dirname(os.path.abspath(__file__))
+            
+            # 2. Build path to default dataset (prediction/training/dataset/fast_1.0s)
+            root_dir = os.path.join(current_dir, "dataset", "fast_1.0s")
+            
+            print(f"No path provided. Defaulting to: {root_dir}")
+            
         self.root_dir = root_dir
         self.files = []
         self.labels = []

@@ -2,7 +2,7 @@ import os
 
 def print_project_tree(root, prefix="", exclude_dirs=None, include_files=None):
     if exclude_dirs is None:
-        exclude_dirs = [".venv", "__pycache__", ".git", "dataset"]
+        exclude_dirs = [".venv", "__pycache__", ".git", "ads", "content"]
     if include_files is None:
         include_files = [".py", ".txt", ".wav"]
 
