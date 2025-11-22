@@ -4,126 +4,60 @@ import random
 import numpy as np
 
 class VideoManager:
-    def __init__(self, content_folder, stream_device_index=1):
-        self.content_folder = content_folder
-        self.stream_index = stream_device_index
-        self.width = 800
-        self.height = 600
+    def __init__(self, content_folder, stream_index=0):
+        # Case-insensitive extension check
+        self.files = [os.path.join(content_folder, f) for f in os.listdir(content_folder) 
+                      if f.lower().endswith(('.png','.jpg','.jpeg','.mp4','.avi'))]
         
-        # State Variables
-        self.cap_passthrough = None
-        self.ad_cap = None
-        self.current_ad_image = None
-        self.content_files = self._load_content_files()
+        self.cap = cv2.VideoCapture(stream_index)
+        # Set hardware resolution (zero CPU cost)
+        self.cap.set(cv2.CAP_PROP_FRAME_WIDTH, 800)
+        self.cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 600)
         
-        # Start the Passthrough immediately
-        self._setup_passthrough()
+        self.ad_cap, self.ad_img = None, None
 
-    def _load_content_files(self):
-        """Scans folder for valid images/videos."""
-        if not os.path.exists(self.content_folder):
-            print(f"Content folder '{self.content_folder}' missing.")
-            return []
+    def get_frame(self, is_ad):
+        # --- AD MODE ---
+        if is_ad and self.files:
+            # Initialize new content if nothing is playing
+            if not self.ad_cap and self.ad_img is None:
+                f = random.choice(self.files)
+                if f.lower().endswith(('.png', '.jpg', '.jpeg')):
+                    img = cv2.imread(f)
+                    # Store raw image without resizing
+                    if img is not None: self.ad_img = img 
+                else:
+                    self.ad_cap = cv2.VideoCapture(f)
+
+            # Render Image
+            if self.ad_img is not None: 
+                # CRITICAL FIX: Return a copy so cv2.putText doesn't overwrite the original in memory
+                return self.ad_img.copy()
             
-        files = [os.path.join(self.content_folder, f) 
-                 for f in os.listdir(self.content_folder)
-                 if f.lower().endswith((".png", ".jpg", ".jpeg", ".mp4", ".avi", ".mov"))]
-        
-        if not files:
-            print("No content files found.")
-        return files
-
-    def _setup_passthrough(self):
-        """Attempts to connect to OBS/Capture Card."""
-        try:
-            self.cap_passthrough = cv2.VideoCapture(self.stream_index)
-            if not self.cap_passthrough.isOpened():
-                print(f"Error: Could not open device {self.stream_index}.")
-                self.cap_passthrough = None
-            else:
-                self.cap_passthrough.set(cv2.CAP_PROP_FRAME_WIDTH, self.width)
-                self.cap_passthrough.set(cv2.CAP_PROP_FRAME_HEIGHT, self.height)
-                print(f"Passthrough active on device {self.stream_index}")
-        except Exception as e:
-            print(f"Video Error: {e}")
-
-    def get_frame(self, score, threshold=0.85):
-        """
-        The Master Logic: Returns the correct image frame based on the AI score.
-        """
-        is_ad_detected = score > threshold
-
-        if is_ad_detected and self.content_files:
-            return self._get_ad_frame(score)
-        else:
-            return self._get_passthrough_frame(score)
-
-    def _get_passthrough_frame(self, score):
-        """Handles showing the live game."""
-        # 1. Clean up any running ad
-        if self.ad_cap:
-            self.ad_cap.release()
-            self.ad_cap = None
-        self.current_ad_image = None
-
-        # 2. Read Live Frame
-        frame = None
-        if self.cap_passthrough:
-            ret, frame = self.cap_passthrough.read()
-            if not ret: frame = None
-
-        # 3. Fallback if stream is dead
-        if frame is None:
-            frame = np.zeros((self.height, self.width, 3), dtype=np.uint8)
-            cv2.putText(frame, "NO SIGNAL", (50, 300), cv2.FONT_HERSHEY_SIMPLEX, 2, (0, 0, 255), 3)
-        else:
-            # Optional: Resize to ensure consistency
-            frame = cv2.resize(frame, (self.width, self.height))
-            # Overlay status
-            cv2.putText(frame, f"LIVE GAME ({score:.1%})", (30, self.height - 30), 
-                        cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 0), 2)
-        
-        return frame
-
-    def _get_ad_frame(self, score):
-        """Handles playing the filler content."""
-        
-        # 1. If we aren't playing anything yet, pick a new file
-        if self.ad_cap is None and self.current_ad_image is None:
-            file_path = random.choice(self.content_files)
-            
-            if file_path.lower().endswith((".png", ".jpg", ".jpeg")):
-                # It's an Image
-                img = cv2.imread(file_path)
-                if img is not None:
-                    self.current_ad_image = cv2.resize(img, (self.width, self.height))
-            else:
-                # It's a Video
-                self.ad_cap = cv2.VideoCapture(file_path)
-        
-        # 2. Return the content
-        if self.current_ad_image is not None:
-            # Return the static image
-            frame = self.current_ad_image.copy()
-        elif self.ad_cap is not None:
-            # Read next video frame
-            ret, frame = self.ad_cap.read()
-            if ret:
-                frame = cv2.resize(frame, (self.width, self.height))
-            else:
-                # Video ended -> Restart loop or Pick new (Recursive call)
+            # Render Video
+            if self.ad_cap:
+                ret, frame = self.ad_cap.read()
+                if ret: 
+                    return frame # No resize (fastest)
+                
+                # Video finished: Attempt to loop once
+                self.ad_cap.set(cv2.CAP_PROP_POS_FRAMES, 0)
+                ret, frame = self.ad_cap.read()
+                if ret: 
+                    return frame
+                
+                # If loop fails, release resource
                 self.ad_cap.release()
                 self.ad_cap = None
-                return self._get_ad_frame(score) # Pick a new one immediately
-        else:
-            # Fallback (Shouldn't happen)
-            frame = np.zeros((self.height, self.width, 3), dtype=np.uint8)
-
-        # Overlay Status
-        cv2.putText(frame, f"AD BLOCKED ({score:.1%})", (30, 50), 
-                    cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 0, 255), 2)
-        return frame
+        
+        # --- PASSTHROUGH MODE ---
+        if self.ad_cap: self.ad_cap.release(); self.ad_cap = None
+        self.ad_img = None
+        
+        ret, frame = self.cap.read()
+        # Fallback black frame if stream fails
+        return frame if ret else np.zeros((600, 800, 3), np.uint8)
 
     def release(self):
-        if self.cap_passthrough: self.cap_passthrough.release()
+        self.cap.release()
         if self.ad_cap: self.ad_cap.release()
