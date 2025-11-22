@@ -16,7 +16,6 @@ import settings
 
 # --- CONFIGURATION ---
 CONTENT_FOLDER = "content"
-STREAM_DEVICE_INDEX = 1
 SUPERVISOR_PATH = os.path.join(settings.BASE_DIR, "models", "supervisor.pkl")
 
 # Stability Config
@@ -65,20 +64,33 @@ def main():
     t3.start()
 
     # 4. START AUDIO
-    print(f"Master Audio Stream started on Device {settings.DEVICE_INDEX}")
-    def master_callback(indata, frames, time, status):
+    print(f"Master Audio Stream started on Device {settings.AUDIO_DEVICE_INDEX}")
+    audio_state = {"mute": False}
+
+    def master_callback(indata, outdata, frames, time, status):
+        # A. Passthrough Logic (Play audio out to speakers)
+        if audio_state["mute"]:
+            outdata.fill(0) # Mute if ad detected
+        else:
+            outdata[:] = indata # Passthrough otherwise
+
+        # B. Analysis Logic (Send to AI threads)
         mono = np.mean(indata, axis=1)
         audio_feed_fast.put(mono)
         audio_feed_slow.put(mono)
         audio_feed_exp.put(mono)
 
-    stream = sd.InputStream(device=settings.DEVICE_INDEX, channels=2, 
-                            samplerate=settings.SAMPLE_RATE, callback=master_callback,
-                            blocksize=int(settings.SAMPLE_RATE * 0.2))
+    # Use sd.Stream (Input & Output) instead of InputStream
+    stream = sd.Stream(device=(settings.AUDIO_DEVICE_INDEX, None), # None = Default Output
+                       channels=settings.CHANNELS, 
+                       samplerate=settings.SAMPLE_RATE, 
+                       callback=master_callback,
+                       blocksize=int(settings.SAMPLE_RATE * 0.2))
     stream.start()
 
+
     # 5. VIDEO MANAGER
-    video_mgr = VideoManager(CONTENT_FOLDER, STREAM_DEVICE_INDEX)
+    video_mgr = VideoManager(CONTENT_FOLDER, settings.STREAM_DEVICE_INDEX)
     
     cv2.namedWindow("Live Ad Replacer", cv2.WINDOW_NORMAL)
     cv2.resizeWindow("Live Ad Replacer", 800, 600)
@@ -114,34 +126,18 @@ def main():
 
             # Raw Probability from Supervisor (0.0 to 1.0)
             ad_probability = supervisor.predict_proba(input_data)[0][1]
-            
-            # --- C. STABILITY CHECK (NEW) ---
-            # 1. Add current guess to history
-            stability_queue.append(ad_probability)
-            
-            # 2. Calculate 5-second average
-            if len(stability_queue) > 0:
-                long_term_avg = sum(stability_queue) / len(stability_queue)
-            else:
-                long_term_avg = 0.0
-            
-            # 3. The Decision
-            # If the long-term average is too low (Content), force the probability down
-            # This prevents a 1-second spike from triggering the ad logic
-            final_decision_score = ad_probability
-            
-            if long_term_avg < STABILITY_LOCK_THRESHOLD:
-                # VETO: The system is stable on "Content", ignore spikes
-                final_decision_score = 0.0 
-            
-            # --- D. UPDATE VIDEO ---
-            frame = video_mgr.get_frame(final_decision_score, threshold=0.5)
+
+            # --- C. UPDATE VIDEO ---
+            # Use 50% threshold since the Supervisor output is already calibrated
+            # ad_proabilit ? > settings.THRESHOLD : content
+            audio_state["mute"] = ad_probability > settings.THRESHOLD
+            frame = video_mgr.get_frame(ad_probability > settings.THRESHOLD)
 
             if frame is not None:
-                # Debug Info
-                text_color = (0, 0, 255) if final_decision_score > 0.5 else (0, 255, 0)
-                cv2.putText(frame, f"Prob: {ad_probability:.2f} | Avg over {STABILITY_BUFFER_SIZE:.1f}s: {long_term_avg:.2f}", (10, 30), 
-                            cv2.FONT_HERSHEY_SIMPLEX, 0.6, text_color, 2)
+                # Optional: Draw the Probability on screen
+                text_color = (0, 0, 255) if ad_probability > settings.THRESHOLD else (0, 255, 0)
+                cv2.putText(frame, f"Ad Prob: {ad_probability:.1%}", (10, 30), 
+                             cv2.FONT_HERSHEY_SIMPLEX, 0.7, text_color, 2)
                 
                 cv2.imshow("Live Ad Replacer", frame)
 
