@@ -4,8 +4,8 @@ import queue
 import cv2
 import sounddevice as sd
 import numpy as np
-import pandas as pd # Required for the Supervisor
-import joblib       # Required to load the .pkl file
+import pandas as pd 
+import joblib 
 import os
 from collections import deque
 
@@ -18,6 +18,15 @@ import settings
 CONTENT_FOLDER = "content"
 SUPERVISOR_PATH = os.path.join(settings.BASE_DIR, "models", "supervisor.pkl")
 
+# --- STABILITY CONFIGURATION ---
+LOOP_DELAY = 0.03 
+STABILITY_WINDOW_SECONDS = 5.0
+# Calculates buffer size needed to hold 5 seconds of predictions
+STABILITY_BUFFER_SIZE = int(STABILITY_WINDOW_SECONDS / LOOP_DELAY) 
+# Veto threshold: if 5s average is below 40%, ignore spikes
+STABILITY_LOCK_THRESHOLD = 0.40 
+
+
 def main():
     # 1. LOAD THE SUPERVISOR BRAIN
     print(f"Loading Supervisor Model from {SUPERVISOR_PATH}...")
@@ -29,7 +38,6 @@ def main():
     print("Supervisor Loaded.")
 
     # 2. SETUP QUEUES (Need history for temporal features)
-    # We increase maxlen to 10 to match the recorder script's memory
     results_fast = deque(maxlen=10)
     results_slow = deque(maxlen=10)
     results_exp = deque(maxlen=10)
@@ -38,7 +46,10 @@ def main():
     audio_feed_slow = queue.Queue()
     audio_feed_exp = queue.Queue()
 
-    # 3. START AI THREADS
+    # NEW: Stability History for the Final Decision
+    stability_queue = deque(maxlen=STABILITY_BUFFER_SIZE)
+
+    # 3. START AI THREADS (Code remains as is)
     t1 = threading.Thread(target=predict_live, kwargs={
         "model_path": settings.MODEL_PATH, "thread_name": "Fast", "chunk_duration": 1.0,
         "prediction_queue": results_fast, "input_audio_queue": audio_feed_fast
@@ -57,8 +68,9 @@ def main():
     }, daemon=True)
     t3.start()
 
-    # 4. START AUDIO
+    # 4. START AUDIO (FIXED FOR PASSTHROUGH & MUTING)
     print(f"Master Audio Stream started on Device {settings.AUDIO_DEVICE_INDEX}")
+    # Shared state to let the main loop tell the audio thread to mute
     audio_state = {"mute": False}
 
     def master_callback(indata, outdata, frames, time, status):
@@ -75,7 +87,7 @@ def main():
         audio_feed_exp.put(mono)
 
     # Use sd.Stream (Input & Output) instead of InputStream
-    stream = sd.Stream(device=(settings.AUDIO_DEVICE_INDEX, None), # None = Default Output
+    stream = sd.Stream(device=(settings.AUDIO_DEVICE_INDEX, None), 
                        channels=settings.CHANNELS, 
                        samplerate=settings.SAMPLE_RATE, 
                        callback=master_callback,
@@ -92,18 +104,16 @@ def main():
     try:
         while True:
             # --- A. PREPARE FEATURES ---
-            # We must recreate the EXACT same features we trained the Supervisor on
-            
-            # 1. Snapshot History
+            # 1. Snapshot History (Code remains as is)
             hist_fast = list(results_fast)
             hist_slow = list(results_slow)
             
-            # 2. Get Raw Scores (Default to 0.0)
+            # 2. Get Raw Scores (Code remains as is)
             s1 = results_fast[-1] if len(results_fast) > 0 else 0.0
             s2 = results_slow[-1] if len(results_slow) > 0 else 0.0
             s3 = results_exp[-1]  if len(results_exp) > 0  else 0.0
 
-            # 3. Calculate Temporal Features
+            # 3. Calculate Temporal Features (Code remains as is)
             if len(hist_fast) > 1:
                 fast_avg = np.mean(hist_fast)
                 fast_std = np.std(hist_fast)
@@ -117,8 +127,6 @@ def main():
                 slow_delta = 0.0
 
             # --- B. ASK THE SUPERVISOR ---
-            # Create a DataFrame with the exact column names from training
-            # Columns: ["fast", "slow", "exp", "fast_avg", "fast_std", "fast_delta", "slow_delta"]
             input_data = pd.DataFrame([[
                 s1, s2, s3, 
                 fast_avg, fast_std, fast_delta, 
@@ -126,20 +134,35 @@ def main():
             ]], columns=["fast", "slow", "exp", "fast_avg", "fast_std", "fast_delta", "slow_delta"])
 
             # Get Prediction (Probability of Ad)
-            # predict_proba returns [[prob_content, prob_ad]] -> we want index 1
             ad_probability = supervisor.predict_proba(input_data)[0][1]
 
-            # --- C. UPDATE VIDEO ---
-            # Use 50% threshold since the Supervisor output is already calibrated
-            # ad_proabilit ? > settings.THRESHOLD : content
-            audio_state["mute"] = ad_probability > settings.THRESHOLD
-            frame = video_mgr.get_frame(ad_probability > settings.THRESHOLD)
+            # --- C. STABILITY VETO CHECK (NEW) ---
+            stability_queue.append(ad_probability)
+            long_term_avg = sum(stability_queue) / len(stability_queue)
+            
+            final_decision_score = ad_probability
+            
+            # Apply VETO: If long-term context is low, ignore current spike
+            if long_term_avg < STABILITY_LOCK_THRESHOLD:
+                final_decision_score = 0.0 
+            elif long_term_avg > (1.0 - STABILITY_LOCK_THRESHOLD):
+                final_decision_score = 1.0
+            # --- D. UPDATE AUDIO & VIDEO BASED ON STABLE SCORE ---
+            is_ad_state = final_decision_score > settings.THRESHOLD
+            
+            # Mute/Passthrough based on the stable decision
+            audio_state["mute"] = is_ad_state
+
+            # Update the video manager
+            frame = video_mgr.get_frame(is_ad_state)
 
             if frame is not None:
-                # Optional: Draw the Probability on screen
-                text_color = (0, 0, 255) if ad_probability > settings.THRESHOLD else (0, 255, 0)
-                cv2.putText(frame, f"Ad Prob: {ad_probability:.1%}", (10, 30), 
-                             cv2.FONT_HERSHEY_SIMPLEX, 0.7, text_color, 2)
+                # Debug Info: Draw the stable score and the average
+                text_color = (0, 0, 255) if final_decision_score > settings.THRESHOLD else (0, 255, 0)
+                
+                cv2.putText(frame, 
+                            f"Stable Prob: {final_decision_score:.2%} | Avg (5s): {long_term_avg:.2%}", 
+                            (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 0.7, text_color, 2)
                 
                 cv2.imshow("Live Ad Replacer", frame)
 
