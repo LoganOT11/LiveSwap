@@ -77,8 +77,6 @@ class VideoManager:
             frame = np.zeros((self.height, self.width, 3), dtype=np.uint8)
             cv2.putText(frame, "NO SIGNAL", (50, 300), cv2.FONT_HERSHEY_SIMPLEX, 2, (0, 0, 255), 3)
         else:
-            # Optional: Resize to ensure consistency
-            frame = cv2.resize(frame, (self.width, self.height))
             # Overlay status
             cv2.putText(frame, f"LIVE GAME ({score:.1%})", (30, self.height - 30), 
                         cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 0), 2)
