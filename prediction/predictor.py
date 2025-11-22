@@ -5,7 +5,7 @@ import torch
 import collections
 import cv2
 import torchaudio
-from ..training.model_arch import AdDetectorCNN
+from training.model_arch import AdDetectorCNN
 
 def find_stereo_mix():
     for i, dev in enumerate(sd.query_devices()):

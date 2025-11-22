@@ -8,4 +8,5 @@ BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 # Now we build paths relative to the root
 RAW_RECORDINGS_DIR = os.path.join(BASE_DIR, "dataset", "raw_recordings")
 PROCESSED_DATASET_DIR = os.path.join(BASE_DIR, "dataset", "fast_1.0s")
-MODEL_PATH = os.path.join(BASE_DIR, "models", "ad_detector.pth")
+MODEL_PATH = os.path.join(BASE_DIR, "models", "fast_1.0s.pth")
+MODEL_PATH2 = os.path.join(BASE_DIR, "models", "main_4.3s.pth")
