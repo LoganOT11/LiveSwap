@@ -5,9 +5,15 @@ import torch
 import collections
 import torchaudio
 import queue
-from training.model_arch import AdDetectorCNN
-from settings import SAMPLE_RATE, SMOOTHING_WINDOW
+import sys
+import os
 
+# Dynamic Import: Handles finding model_arch whether running from root or subfolder
+try:
+    from training.model_arch import AdDetectorCNN
+except ImportError:
+    # Fallback if running relative
+    from ..training.model_arch import AdDetectorCNN
 
 def find_stereo_mix():
     for i, dev in enumerate(sd.query_devices()):
@@ -17,8 +23,8 @@ def find_stereo_mix():
 
 def predict_live(
     model_path,
-    thread_name,
-    device_index=2,
+    thread_name="AI-Thread", # Optional default
+    device_index=None,       # Default None allows auto-find
     sample_rate=44100,
     smoothing_window=5,
     chunk_duration=1.0,
@@ -39,15 +45,17 @@ def predict_live(
     model.eval()
 
     # 2. Audio transforms
+    # CORRECTED: Uses the local 'sample_rate' argument, not a global constant
     mel_transform = torchaudio.transforms.MelSpectrogram(
-        sample_rate=SAMPLE_RATE, n_fft=2048, hop_length=512, n_mels=64
+        sample_rate=sample_rate, n_fft=2048, hop_length=512, n_mels=64
     )
     db_transform = torchaudio.transforms.AmplitudeToDB()
 
     # 3. Buffers
+    # CORRECTED: Uses local 'sample_rate' and 'smoothing_window'
     raw_buffer_len = int(sample_rate * chunk_duration)
     audio_buffer = collections.deque(maxlen=raw_buffer_len)
-    prediction_buffer = collections.deque(maxlen=SMOOTHING_WINDOW)
+    prediction_buffer = collections.deque(maxlen=smoothing_window)
 
     # Pre-fill buffer to avoid startup crash
     audio_buffer.extend(np.zeros(raw_buffer_len))
@@ -67,7 +75,11 @@ def predict_live(
 
         # C. Smooth
         prediction_buffer.append(raw_pred)
-        smoothed_score = sum(prediction_buffer)/len(prediction_buffer)
+        
+        if len(prediction_buffer) > 0:
+            smoothed_score = sum(prediction_buffer)/len(prediction_buffer)
+        else:
+            smoothed_score = 0.0
 
         # D. Output
         if prediction_queue is not None:
@@ -75,7 +87,7 @@ def predict_live(
 
     # --- MODE A: PASSIVE (Read from Queue) ---
     if input_audio_queue is not None:
-        print(f"AI Thread started ({thread_name}) - Context: {chunk_duration}s")
+        print(f"{thread_name} started (Passive) - Context: {chunk_duration}s")
         while True:
             try:
                 # Blocking wait for audio
@@ -97,10 +109,9 @@ def predict_live(
             mono = np.mean(indata, axis=1)
             audio_buffer.extend(mono)
 
-        print(f"AI Thread started (Active) - Device: {device_index}")
+        print(f"{thread_name} started (Active) - Device: {device_index}")
         with sd.InputStream(device=device_index, channels=channels, 
                             samplerate=sample_rate, callback=callback):
             while True:
                 time.sleep(step_duration)
                 run_inference()
-    

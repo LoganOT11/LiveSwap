@@ -5,3 +5,4 @@ dataset/raw_recordings/
 __pycache__/
 prediction/__pycache__/
 prediction/ffmpeg/
+training/__pycache__/
