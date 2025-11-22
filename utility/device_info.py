@@ -1,6 +1,6 @@
 import sounddevice as sd
 
-from .settings import DEVICE_INDEX
+from ..settings import DEVICE_INDEX
 
 try:
     info = sd.query_devices(DEVICE_INDEX)

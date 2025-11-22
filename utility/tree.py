@@ -24,7 +24,7 @@ def print_project_tree(root, prefix="", exclude_dirs=None, include_files=None):
 current_script_path = os.path.abspath(__file__)
 
 # Get the folder containing this script
-current_folder = os.path.dirname(current_script_path)
+current_folder = os.path.dirname(os.path.dirname(current_script_path))
 
 # Print the project tree starting from the current folder
 project_root = current_folder
