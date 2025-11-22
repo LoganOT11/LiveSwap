@@ -1,14 +1,7 @@
-<<<<<<< HEAD
-import os
-import cv2
-import numpy as np
-import random
-=======
 import cv2
 import os
 import random
 import numpy as np
->>>>>>> 29474a3b485ba1863584994f7084b7581e86e2fc
 
 class VideoManager:
     def __init__(self, content_folder, stream_index=0):
