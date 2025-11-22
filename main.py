@@ -80,15 +80,30 @@ def main():
             s2 = results_slow[-1] if len(results_slow) > 0 else 0.0
             s3 = results_exp[-1]  if len(results_exp) > 0  else 0.0
 
-            # --- B. CALCULATE TOTAL SUM ---
-            total_score = s1 + s2 + s3
+            # --- B. CALCULATE WEIGHTED DECISION ---
+            
+            # 1. The Hard Veto (Safety Net)
+            # If the smart model is sure it's content, force content.
+            if s2 < 0.15:
+                final_decision_is_ad = False
+                debug_reason = "VETO: Main Judge says Content"
+
+            # 2. The High-Confidence Trigger
+            # If total sum is high, AND the main judge isn't fighting it
+            elif total_score > 1.2 and s2 > 0.50:
+                final_decision_is_ad = True
+                debug_reason = "TRIGGER: High Confidence Sum"
+
+            # 3. Default
+            else:
+                final_decision_is_ad = False
+                debug_reason = "Stable"
 
             # --- C. GET FRAME ---
-            # VideoManager logic:
-            # If total_score > 1.0 -> Return Ad Frame
-            # Else -> Return Live Game Frame
-            frame = video_mgr.get_frame(total_score, threshold=AD_THRESHOLD_SUM)
-
+            # We pass a fake high/low score to force VideoManager to comply
+            force_score = 1.0 if final_decision_is_ad else 0.0
+            frame = video_mgr.get_frame(force_score, threshold=0.5)
+            
             # --- D. DISPLAY ---
             if frame is not None:
                 cv2.imshow("Live Ad Replacer", frame)
