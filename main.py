@@ -16,7 +16,6 @@ import settings
 
 # --- CONFIGURATION ---
 CONTENT_FOLDER = "content"
-STREAM_DEVICE_INDEX = 1
 SUPERVISOR_PATH = os.path.join(settings.BASE_DIR, "models", "supervisor.pkl")
 
 def main():
@@ -59,20 +58,20 @@ def main():
     t3.start()
 
     # 4. START AUDIO
-    print(f"Master Audio Stream started on Device {settings.DEVICE_INDEX}")
+    print(f"Master Audio Stream started on Device {settings.AUDIO_DEVICE_INDEX}")
     def master_callback(indata, frames, time, status):
         mono = np.mean(indata, axis=1)
         audio_feed_fast.put(mono)
         audio_feed_slow.put(mono)
         audio_feed_exp.put(mono)
 
-    stream = sd.InputStream(device=settings.DEVICE_INDEX, channels=2, 
+    stream = sd.InputStream(device=settings.AUDIO_DEVICE_INDEX, channels=2, 
                             samplerate=settings.SAMPLE_RATE, callback=master_callback,
                             blocksize=int(settings.SAMPLE_RATE * 0.2))
     stream.start()
 
     # 5. VIDEO MANAGER
-    video_mgr = VideoManager(CONTENT_FOLDER, STREAM_DEVICE_INDEX)
+    video_mgr = VideoManager(CONTENT_FOLDER, settings.STREAM_DEVICE_INDEX)
     
     cv2.namedWindow("Live Ad Replacer", cv2.WINDOW_NORMAL)
     cv2.resizeWindow("Live Ad Replacer", 800, 600)

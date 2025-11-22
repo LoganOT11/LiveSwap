@@ -1,5 +1,6 @@
 import os
-DEVICE_INDEX = 2         # Your VB-Cable Output ID
+AUDIO_DEVICE_INDEX = 1         # Your VB-Cable Output ID
+STREAM_DEVICE_INDEX = 0  # Your Camera Index for OBS Video
 SAMPLE_RATE = 44100       # Standard for video
 CHANNELS = 2              # Stereo is required for spatial detection
 
