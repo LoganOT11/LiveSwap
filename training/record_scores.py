@@ -74,7 +74,7 @@ def main():
             hist_fast = list(results_fast)
             hist_slow = list(results_slow)
 
-            # 2. Calculate Features (Handle empty startup case)
+            # 2. Calculate FAST Features
             if len(hist_fast) > 1:
                 fast_avg = np.mean(hist_fast)       # Trend
                 fast_std = np.std(hist_fast)        # Stability/Panic
@@ -82,10 +82,13 @@ def main():
             else:
                 fast_avg, fast_std, fast_delta = s1, 0.0, 0.0
 
+            # 3. Calculate SLOW Features (Updated to include Avg/Std)
             if len(hist_slow) > 1:
-                slow_delta = hist_slow[-1] - hist_slow[0] # Is confidence rising?
+                slow_avg = np.mean(hist_slow)             # <--- NEW
+                slow_std = np.std(hist_slow)              # <--- NEW
+                slow_delta = hist_slow[-1] - hist_slow[0] 
             else:
-                slow_delta = 0.0
+                slow_avg, slow_std, slow_delta = s2, 0.0, 0.0
             # ------------------------------------
 
             # User Label Input
@@ -97,11 +100,15 @@ def main():
             if is_ad or is_content:
                 label = 1 if is_ad else 0
                 
-                # SAVE ALL FEATURES
-                data_row = [s1, s2, s3, fast_avg, fast_std, fast_delta, slow_delta, label]
+                # SAVE ALL FEATURES (Added slow_avg and slow_std)
+                data_row = [
+                    s1, s2, s3, 
+                    fast_avg, fast_std, fast_delta, 
+                    slow_avg, slow_std, slow_delta, 
+                    label
+                ]
                 data_log.append(data_row)
                 
-                # Optional: Print status so you know it's working
                 sys.stdout.write(f"\rLogged {len(data_log)} samples... (Last: {label})")
                 sys.stdout.flush()
 
@@ -122,20 +129,23 @@ def main():
             # Check if file exists so we don't write headers twice
             file_exists = os.path.isfile(csv_path)
             
-            # Open in 'a' (Append) mode instead of 'w' (Write)
             with open(csv_path, "a", newline="") as f:
                 writer = csv.writer(f)
                 
-                # Only write headers if this is a brand new file
+                # Updated Headers to match new columns
                 if not file_exists:
-                    headers = ["fast", "slow", "exp", "fast_avg", "fast_std", "fast_delta", "slow_delta", "label"]
+                    headers = [
+                        "fast", "slow", "exp", 
+                        "fast_avg", "fast_std", "fast_delta", 
+                        "slow_avg", "slow_std", "slow_delta", 
+                        "label"
+                    ]
                     writer.writerow(headers)
                 
                 writer.writerows(data_log)
-                
-            print(f"Appended {len(data_log)} rows to {csv_path}")
+            print(f"\nAppended {len(data_log)} rows to {csv_path}")
         else:
-            print("No data recorded.")
+            print("\nNo data recorded.")
 
 if __name__ == "__main__":
     main()
