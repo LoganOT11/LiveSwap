@@ -4,11 +4,16 @@ import random
 import numpy as np
 
 class VideoManager:
-    def __init__(self, content_folder, stream_device_index=1):
+    def __init__(self, content_folder, stream_device_index=1, drain_buffer=True):
+        """
+        drain_buffer (bool): If True, we keep reading from the capture card (discarding frames)
+                             while showing ads. This prevents the 30-second lag when switching back.
+        """
         self.content_folder = content_folder
         self.stream_index = stream_device_index
         self.width = 800
         self.height = 600
+        self.drain_buffer = drain_buffer # <--- NEW CONTROL VARIABLE
         
         # State Variables
         self.cap_passthrough = None
@@ -36,13 +41,17 @@ class VideoManager:
     def _setup_passthrough(self):
         """Attempts to connect to OBS/Capture Card."""
         try:
-            self.cap_passthrough = cv2.VideoCapture(self.stream_index)
+            # CAP_DSHOW is highly recommended for Windows Capture Cards to reduce latency
+            self.cap_passthrough = cv2.VideoCapture(self.stream_index, cv2.CAP_DSHOW)
             if not self.cap_passthrough.isOpened():
                 print(f"Error: Could not open device {self.stream_index}.")
                 self.cap_passthrough = None
             else:
                 self.cap_passthrough.set(cv2.CAP_PROP_FRAME_WIDTH, self.width)
                 self.cap_passthrough.set(cv2.CAP_PROP_FRAME_HEIGHT, self.height)
+                
+                # Try to set hardware buffer size to 1 (minimal latency)
+                self.cap_passthrough.set(cv2.CAP_PROP_BUFFERSIZE, 1)
                 print(f"Passthrough active on device {self.stream_index}")
         except Exception as e:
             print(f"Video Error: {e}")
@@ -88,6 +97,15 @@ class VideoManager:
     def _get_ad_frame(self, score):
         """Handles playing the filler content."""
         
+        # --- CRITICAL BUFFER IMPLEMENTATION ---
+        # While showing an ad, we MUST grab the live frame and throw it away.
+        # If we don't, the hardware buffer fills up, and when we switch back, 
+        # we see the game from 30 seconds ago.
+        if self.drain_buffer:
+            if self.cap_passthrough and self.cap_passthrough.isOpened():
+                self.cap_passthrough.grab() # Fastest way to clear buffer
+        # --------------------------------------
+
         # 1. If we aren't playing anything yet, pick a new file
         if self.ad_cap is None and self.current_ad_image is None:
             file_path = random.choice(self.content_files)
