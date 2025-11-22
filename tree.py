@@ -2,7 +2,7 @@ import os
 
 def print_project_tree(root, prefix="", exclude_dirs=None, include_files=None):
     if exclude_dirs is None:
-        exclude_dirs = ["venv", "__pycache__", ".git"]
+        exclude_dirs = [".venv", "__pycache__", ".git", "dataset"]
     if include_files is None:
         include_files = [".py", ".txt", ".wav"]
 
@@ -20,6 +20,12 @@ def print_project_tree(root, prefix="", exclude_dirs=None, include_files=None):
             extension = "    " if i == len(entries) - 1 else "│   "
             print_project_tree(path, prefix + extension, exclude_dirs, include_files)
 
-# Example usage
-project_root = "C:/Users/Mathew/Documents/Code/python/AudioLearner"  # Replace with your path
+# Get the absolute path of the script you are running right now
+current_script_path = os.path.abspath(__file__)
+
+# Get the folder containing this script
+current_folder = os.path.dirname(current_script_path)
+
+# Print the project tree starting from the current folder
+project_root = current_folder
 print_project_tree(project_root)
