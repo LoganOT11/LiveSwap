@@ -26,19 +26,19 @@ def main():
 
     # 2. START THREADS
     t1 = threading.Thread(target=predict_live, kwargs={
-        "model_path": settings.MODEL_PATH, "chunk_duration": 1.0,
+        "model_path": settings.MODEL_PATH, "thread_name": "Fast", "chunk_duration": 1.0,
         "prediction_queue": results_fast, "input_audio_queue": audio_feed_fast
     }, daemon=True)
     t1.start()
 
     t2 = threading.Thread(target=predict_live, kwargs={
-        "model_path": settings.MODEL_PATH2, "chunk_duration": 4.3,
+        "model_path": settings.MODEL_PATH2, "thread_name": "Main", "chunk_duration": 4.3,
         "prediction_queue": results_slow, "input_audio_queue": audio_feed_slow
     }, daemon=True)
     t2.start()
 
     t3 = threading.Thread(target=predict_live, kwargs={
-        "model_path": settings.MODEL_PATH2, "chunk_duration": 1.0,
+        "model_path": settings.MODEL_PATH2, "thread_name": "Experimental", "chunk_duration": 1.0,
         "prediction_queue": results_exp, "input_audio_queue": audio_feed_exp
     }, daemon=True)
     t3.start()

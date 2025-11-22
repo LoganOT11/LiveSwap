@@ -16,6 +16,7 @@ def find_stereo_mix():
 
 def predict_live(
     model_path,
+    thread_name,
     device_index=None,
     sample_rate=44100,
     smoothing_window=5,
@@ -73,7 +74,7 @@ def predict_live(
 
     # --- MODE A: PASSIVE (Read from Queue) ---
     if input_audio_queue is not None:
-        print(f"AI Thread started (Passive) - Context: {chunk_duration}s")
+        print(f"AI Thread started ({thread_name}) - Context: {chunk_duration}s")
         while True:
             try:
                 # Blocking wait for audio
