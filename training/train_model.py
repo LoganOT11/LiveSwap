@@ -17,10 +17,10 @@ from training.model_arch import AdDetectorCNN
 # --- CONFIGURATION ---
 # We removed DATASET_PATH because AdDataset now finds it automatically
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-MODEL_SAVE_PATH = os.path.join(BASE_DIR, "models", "main_4.3s.pth")
+MODEL_SAVE_PATH = os.path.join(BASE_DIR, "models", "fast_1.0s.pth")
 
 BATCH_SIZE = 16
-EPOCHS = 10 
+EPOCHS = 20 
 LEARNING_RATE = 0.001
 
 def train():

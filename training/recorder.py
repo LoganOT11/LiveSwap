@@ -7,6 +7,16 @@ import sys
 import os
 from datetime import datetime
 
+# --- PATH to find settings.py ---
+# 1. Get the folder where this script lives (.../LiveSwap/training)
+current_dir = os.path.dirname(os.path.abspath(__file__))
+
+# 2. Go up one level to the Project Root (.../LiveSwap)
+project_root = os.path.dirname(current_dir)
+
+# 3. Add the root to Python's path
+sys.path.append(project_root)
+
 from settings import DEVICE_INDEX, SAMPLE_RATE, CHANNELS
 
 # High-performance Queue
@@ -26,7 +36,7 @@ def callback(indata, frames, time, status):
 
 def record_audio(label):
     # Setup output directory
-    base_dir = os.path.dirname(os.path.abspath(__file__))
+    base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
     output_dir = os.path.join(base_dir, "dataset", "raw_recordings", label)
     os.makedirs(output_dir, exist_ok=True)
 

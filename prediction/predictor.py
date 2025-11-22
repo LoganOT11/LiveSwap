@@ -15,29 +15,25 @@ def find_stereo_mix():
 
 def predict_live(
     model_path,
-    device_index=None,
+    device_index=2,
     sample_rate=44100,
     smoothing_window=5,
     chunk_duration=1.0,
     step_duration=0.2,
     confidence_threshold=0.85,
     show_hud=False,
-    prediction_queue=None 
+    prediction_queue=None,
+    input_audio_queue=None # <--- NEW ARGUMENT
 ):
     """
-    Live ad detection. Only device_index and model_path need to be provided.
-    Other values have defaults.
+    If input_audio_queue is provided, it reads audio from there.
+    If NOT provided, it opens its own sounddevice stream.
     """
     # Load model
     device = torch.device("cpu")
     model = AdDetectorCNN().to(device)
     model.load_state_dict(torch.load(model_path, map_location=device))
     model.eval()
-
-    # Audio device info
-    device_index = device_index if device_index is not None else find_stereo_mix() 
-    device_info = sd.query_devices(device_index)
-    channels = device_info['max_input_channels']
 
     # Audio transforms
     mel_transform = torchaudio.transforms.MelSpectrogram(
@@ -49,6 +45,65 @@ def predict_live(
     raw_buffer_len = int(sample_rate * chunk_duration)
     audio_buffer = collections.deque(maxlen=raw_buffer_len)
     prediction_buffer = collections.deque(maxlen=smoothing_window)
+
+    # Pre-fill buffer to avoid startup crash
+    audio_buffer.extend(np.zeros(raw_buffer_len))
+
+    # --- INNER FUNCTION: THE BRAIN ---
+    def run_inference():
+        snapshot = np.array(audio_buffer)
+        waveform = torch.from_numpy(snapshot).float().unsqueeze(0)
+
+        with torch.no_grad():
+            spec = mel_transform(waveform)
+            spec = db_transform(spec)
+            spec_for_ui = spec.clone()
+            spec = spec.unsqueeze(0).to(device)
+            raw_pred = model(spec).item()
+
+        prediction_buffer.append(raw_pred)
+        smoothed_score = sum(prediction_buffer)/len(prediction_buffer)
+
+        if show_hud:
+            # (Note: You'll need to pass draw_hud here or keep it nested)
+            pass 
+
+        if prediction_queue is not None:
+            prediction_queue.append(smoothed_score)
+
+    # --- MODE A: PASSIVE (Read from Queue) ---
+    if input_audio_queue is not None:
+        print(f"AI Thread started (Passive Mode) - Chunk Duration: {chunk_duration}s")
+        while True:
+            try:
+                # Blocking get: Wait for audio from Main Thread
+                new_audio = input_audio_queue.get(timeout=5) 
+                audio_buffer.extend(new_audio)
+                
+                # Run inference immediately after getting data
+                run_inference()
+            except queue.Empty:
+                print("Warning: AI Thread starving (No audio received)")
+                continue
+
+    # --- MODE B: ACTIVE (Open Microphone) ---
+    else:
+        # Audio device info
+        # device_index = ... (Keep your existing logic here)
+        device_info = sd.query_devices(device_index)
+        channels = device_info['max_input_channels']
+
+        def callback(indata, frames, time_info, status):
+            if status: print(status)
+            mono = np.mean(indata, axis=1)
+            audio_buffer.extend(mono)
+
+        print(f"👂 AI Thread started (Active Mode) - Device: {device_index}")
+        with sd.InputStream(device=device_index, channels=channels, samplerate=sample_rate, callback=callback):
+            while True:
+                # In active mode, we sleep to control inference rate
+                time.sleep(step_duration)
+                run_inference()
 
     def callback(indata, frames, time_info, status):
         if status:

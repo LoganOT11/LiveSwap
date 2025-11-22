@@ -18,7 +18,7 @@ class AdDataset(Dataset):
             project_root = os.path.dirname(current_dir)
             
             # 2. Build path to default dataset (training/dataset/fast_1.0s)
-            root_dir = os.path.join(project_root, "dataset", "main_4.3s")
+            root_dir = os.path.join(project_root, "dataset", "fast_1.0s")
             
             print(f"No path provided. Defaulting to: {root_dir}")
             

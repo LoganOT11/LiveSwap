@@ -4,6 +4,16 @@ import soundfile as sf
 import numpy as np
 import sys
 
+# --- PATH to find settings.py ---
+# 1. Get the folder where this script lives (.../LiveSwap/training)
+current_dir = os.path.dirname(os.path.abspath(__file__))
+
+# 2. Go up one level to the Project Root (.../LiveSwap)
+project_root = os.path.dirname(current_dir)
+
+# 3. Add the root to Python's path
+sys.path.append(project_root)
+
 # Direcotry paths with recording
 from settings import RAW_RECORDINGS_DIR as RAW_FOLDER
 from settings import PROCESSED_DATASET_DIR as OUTPUT_BASE
