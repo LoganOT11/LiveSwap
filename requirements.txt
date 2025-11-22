@@ -11,6 +11,8 @@ soundfile>=0.12.0    # Saving high-quality .wav files (The Scribe)
 # --- Deep Learning (The Brain) ---
 torch>=2.0.0         # PyTorch Neural Network framework
 torchaudio>=2.0.0    # Audio processing for PyTorch (Spectrograms)
+pandas>=1.4.0        # Data handling & CSV logging
+joblib>=1.1.0        # Model saving/loading
 
 # --- Computer Vision & GUI (The Eyes) ---
 opencv-python>=4.5.0 # Real-time window visualization & image resizing
