@@ -1,0 +1,23 @@
+# VBCable software needs to be installed
+# Computer audio Output Device must be set to "CABLE Input (VB-Audio Virtual Cable)"
+
+# --- Core Audio & Math ---
+numpy>=1.21.0        # Fast array handling for audio buffers
+scipy>=1.7.0         # Signal processing helpers
+librosa>=0.9.0       # Audio feature extraction (used in Slicer)
+sounddevice>=0.4.0   # Real-time audio capture (The Ears)
+soundfile>=0.12.0    # Saving high-quality .wav files (The Scribe)
+
+# --- Deep Learning (The Brain) ---
+torch>=2.0.0         # PyTorch Neural Network framework
+torchaudio>=2.0.0    # Audio processing for PyTorch (Spectrograms)
+
+# --- Computer Vision & GUI (The Eyes) ---
+opencv-python>=4.5.0 # Real-time window visualization & image resizing
+
+# --- Playback (The Actuator) ---
+python-vlc>=3.0.0    # Controls VLC Media Player to overlay filler video
+
+# --- Utilities ---
+matplotlib>=3.5.0    # (Optional) For debugging/viewing static spectrogram plots
+scikit-learn>=1.0.0  # (Optional) Useful for data splitting/metrics
