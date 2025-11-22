@@ -145,7 +145,8 @@ def main():
             # Apply VETO: If long-term context is low, ignore current spike
             if long_term_avg < STABILITY_LOCK_THRESHOLD:
                 final_decision_score = 0.0 
-
+            elif long_term_avg > (1.0 - STABILITY_LOCK_THRESHOLD):
+                final_decision_score = 1.0
             # --- D. UPDATE AUDIO & VIDEO BASED ON STABLE SCORE ---
             is_ad_state = final_decision_score > settings.THRESHOLD
             
