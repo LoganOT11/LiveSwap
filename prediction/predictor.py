@@ -39,14 +39,14 @@ def predict_live(
 
     # 2. Audio transforms
     mel_transform = torchaudio.transforms.MelSpectrogram(
-        sample_rate=SAMPLE_RATE, n_fft=2048, hop_length=512, n_mels=64
+        sample_rate=sample_rate, n_fft=2048, hop_length=512, n_mels=64
     )
     db_transform = torchaudio.transforms.AmplitudeToDB()
 
     # 3. Buffers
     raw_buffer_len = int(sample_rate * chunk_duration)
     audio_buffer = collections.deque(maxlen=raw_buffer_len)
-    prediction_buffer = collections.deque(maxlen=SMOOTHING_WINDOW)
+    prediction_buffer = collections.deque(maxlen=smoothing_window)
 
     # Pre-fill buffer to avoid startup crash
     audio_buffer.extend(np.zeros(raw_buffer_len))
