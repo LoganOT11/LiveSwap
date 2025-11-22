@@ -59,16 +59,29 @@ def main():
 
     # 4. START AUDIO
     print(f"Master Audio Stream started on Device {settings.AUDIO_DEVICE_INDEX}")
-    def master_callback(indata, frames, time, status):
+    audio_state = {"mute": False}
+
+    def master_callback(indata, outdata, frames, time, status):
+        # A. Passthrough Logic (Play audio out to speakers)
+        if audio_state["mute"]:
+            outdata.fill(0) # Mute if ad detected
+        else:
+            outdata[:] = indata # Passthrough otherwise
+
+        # B. Analysis Logic (Send to AI threads)
         mono = np.mean(indata, axis=1)
         audio_feed_fast.put(mono)
         audio_feed_slow.put(mono)
         audio_feed_exp.put(mono)
 
-    stream = sd.InputStream(device=settings.AUDIO_DEVICE_INDEX, channels=2, 
-                            samplerate=settings.SAMPLE_RATE, callback=master_callback,
-                            blocksize=int(settings.SAMPLE_RATE * 0.2))
+    # Use sd.Stream (Input & Output) instead of InputStream
+    stream = sd.Stream(device=(settings.AUDIO_DEVICE_INDEX, None), # None = Default Output
+                       channels=settings.CHANNELS, 
+                       samplerate=settings.SAMPLE_RATE, 
+                       callback=master_callback,
+                       blocksize=int(settings.SAMPLE_RATE * 0.2))
     stream.start()
+
 
     # 5. VIDEO MANAGER
     video_mgr = VideoManager(CONTENT_FOLDER, settings.STREAM_DEVICE_INDEX)
@@ -118,13 +131,13 @@ def main():
 
             # --- C. UPDATE VIDEO ---
             # Use 50% threshold since the Supervisor output is already calibrated
-            # ad_proabilit ? > 0.5 : content
-            
-            frame = video_mgr.get_frame(ad_probability > 0.5)
+            # ad_proabilit ? > settings.THRESHOLD : content
+            audio_state["mute"] = ad_probability > settings.THRESHOLD
+            frame = video_mgr.get_frame(ad_probability > settings.THRESHOLD)
 
             if frame is not None:
                 # Optional: Draw the Probability on screen
-                text_color = (0, 0, 255) if ad_probability > 0.5 else (0, 255, 0)
+                text_color = (0, 0, 255) if ad_probability > settings.THRESHOLD else (0, 255, 0)
                 cv2.putText(frame, f"Ad Prob: {ad_probability:.1%}", (10, 30), 
                              cv2.FONT_HERSHEY_SIMPLEX, 0.7, text_color, 2)
                 
