@@ -10,7 +10,7 @@ from prediction.predictor import AdPredictor
 
 CONTENT_FOLDER = "content"
 STREAM_DEVICE_INDEX = 0  # Camera Index for OBS Video
-AUDIO_DEVICE_INDEX = None # Set to your Virtual Cable Output index if needed, else None for default
+AUDIO_DEVICE_INDEX = 1 # Set to your Virtual Cable Output index if needed, else None for default
 
 def main():
     # 1. Initialize Predictor
@@ -20,13 +20,19 @@ def main():
     # 2. Setup Audio Bridge
     # This queue holds audio chunks moving from the background audio thread to the main loop
     audio_queue = collections.deque()
+    state = {"score": 0.0}
 
-    def audio_callback(indata, frames, time_info, status):
+    def audio_callback(indata, outdata, frames, time_info, status):
         if status:
             print(status)
         # Mix to mono and add to queue
         mono = np.mean(indata, axis=1)
         audio_queue.extend(mono)
+
+        if state["score"] > 0.85:
+            outdata.fill(0)
+        else:
+            outdata[:] = indata
 
     # 3. Load content files
     content_files = [os.path.join(CONTENT_FOLDER, f) 
@@ -50,7 +56,8 @@ def main():
     print("Starting main loop...")
     # Start non-blocking audio stream
     try:
-        with sd.InputStream(device=AUDIO_DEVICE_INDEX, channels=1, samplerate=44100, callback=audio_callback):
+        with sd.Stream(device=(AUDIO_DEVICE_INDEX, None), channels=1, samplerate=44100, callback=audio_callback):
+            score = 0.0
             while True:
                 # --- A. Get Video Frame ---
                 ret_video, frame = cap_passthrough.read()
@@ -69,9 +76,8 @@ def main():
                     
                     # Get immediate prediction score
                     score = predictor.predict(np.array(chunk))
-                else:
-                    score = 0.0 # No new audio, assume low score or hold previous
-                
+                    state["score"] = score
+
                 # --- C. Content Switching Logic ---
                 if score > 0.85 and content_files:
                     # Ad Detected
@@ -101,6 +107,7 @@ def main():
                     cv2.putText(current_content, f"LIVE ({score:.1%})", (50, 550), 
                                 cv2.FONT_HERSHEY_SIMPLEX, 1.0, (255, 255, 255), 2)
 
+                cv2.putText(current_content, f"Confidence: {state['score']:.2%}", (30, 50), cv2.FONT_HERSHEY_SIMPLEX, 1.0, (0, 255, 0), 2)
                 cv2.imshow("Main Display", current_content)
                 
                 if cv2.waitKey(1) & 0xFF == ord('q'):
@@ -108,6 +115,8 @@ def main():
 
     except Exception as e:
         print(f"Error: {e}")
+    except KeyboardInterrupt:
+        print("\nStopping...")
     finally:
         cap_passthrough.release()
         if ad_cap: ad_cap.release()
