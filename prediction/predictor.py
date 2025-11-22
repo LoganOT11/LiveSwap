@@ -17,7 +17,7 @@ def find_stereo_mix():
 def predict_live(
     model_path,
     thread_name,
-    device_index=None,
+    device_index=2,
     sample_rate=44100,
     smoothing_window=5,
     chunk_duration=1.0,
