@@ -16,7 +16,7 @@ import settings
 
 # --- CONFIGURATION ---
 CONTENT_FOLDER = "content"
-STREAM_DEVICE_INDEX = 1
+STREAM_DEVICE_INDEX = 2
 SUPERVISOR_PATH = os.path.join(settings.BASE_DIR, "models", "supervisor.pkl")
 
 def main():

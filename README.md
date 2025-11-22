@@ -14,7 +14,7 @@ In main.py ensure that virtual cam and CABLE OUTPUT are selected for STREAM_DEVI
 device_info.py can be used to find the appropriate indices for these devices.
 
 ## Running
-main.py
+py main.py
 - For running input/output model
-portal/portal.py 
+python portal/portal.py 
 - For running web portal to drop content into
