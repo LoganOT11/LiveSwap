@@ -18,9 +18,14 @@ def main():
     predictor = AdPredictor(settings.MODEL_PATH)
     
     # 2. Setup Audio Bridge
-    # This queue holds audio chunks moving from the background audio thread to the main loop
     audio_queue = collections.deque()
     state = {"score": 0.0}
+
+    # --- NEW: Analysis Buffers ---
+    # Holds 1 second of audio history (44100 samples) for the model to see context
+    analysis_buffer = collections.deque(maxlen=44100) 
+    # Holds last 5 predictions to smooth out jitter
+    score_buffer = collections.deque(maxlen=5)
 
     def audio_callback(indata, outdata, frames, time_info, status):
         if status:
@@ -57,7 +62,6 @@ def main():
     # Start non-blocking audio stream
     try:
         with sd.Stream(device=(AUDIO_DEVICE_INDEX, None), channels=1, samplerate=44100, callback=audio_callback):
-            score = 0.0
             while True:
                 # --- A. Get Video Frame ---
                 ret_video, frame = cap_passthrough.read()
@@ -67,24 +71,28 @@ def main():
                 
                 current_content = frame
 
-                # --- B. Get Audio & Predict ---
-                # Consume all available audio in the queue to stay real-time
-                if len(audio_queue) > 0:
-                    chunk = []
+                # --- B. Get Audio & Predict (UPDATED LOGIC) ---
+                # Wait for ~0.2s of new audio (8820 samples) before predicting so we don't overload CPU
+                if len(audio_queue) >= 8820:
+                    # Drain the NEW audio into the sliding analysis buffer
                     while len(audio_queue) > 0:
-                        chunk.append(audio_queue.popleft())
+                        analysis_buffer.append(audio_queue.popleft())
                     
-                    # Get immediate prediction score
-                    score = predictor.predict(np.array(chunk))
-                    state["score"] = score
+                    # Only run prediction if we have a full 1 second of context
+                    if len(analysis_buffer) == 44100:
+                        raw_score = predictor.predict(np.array(analysis_buffer))
+                        score_buffer.append(raw_score)
+                        # Average the buffer to smooth out the result
+                        state["score"] = sum(score_buffer) / len(score_buffer)
 
                 # --- C. Content Switching Logic ---
-                if score > 0.85 and content_files:
+                # Use the smoothed score from state
+                if state["score"] > 0.85 and content_files:
                     # Ad Detected
                     if ad_cap is None:
                         # Pick new content
                         f = random.choice(content_files)
-                        if f.endswith((".png", ".jpg")):
+                        if f.lower().endswith((".png", ".jpg", ".jpeg")):
                             img = cv2.imread(f)
                             if img is not None: current_content = cv2.resize(img, (800, 600))
                         else:
@@ -104,7 +112,7 @@ def main():
                         ad_cap = None
                     
                     # Overlay
-                    cv2.putText(current_content, f"LIVE ({score:.1%})", (50, 550), 
+                    cv2.putText(current_content, f"LIVE ({state['score']:.1%})", (50, 550), 
                                 cv2.FONT_HERSHEY_SIMPLEX, 1.0, (255, 255, 255), 2)
 
                 cv2.putText(current_content, f"Confidence: {state['score']:.2%}", (30, 50), cv2.FONT_HERSHEY_SIMPLEX, 1.0, (0, 255, 0), 2)
