@@ -5,6 +5,7 @@ import cv2
 import sounddevice as sd
 import numpy as np
 from collections import deque
+import keyboard
 
 # Import your modules
 from prediction.predictor import predict_live
@@ -80,38 +81,47 @@ def main():
             s2 = results_slow[-1] if len(results_slow) > 0 else 0.0
             s3 = results_exp[-1]  if len(results_exp) > 0  else 0.0
 
-            # --- B. CALCULATE WEIGHTED DECISION ---
+            # --- B. CALCULATE SUM (The Missing Line) ---
+            total_score = s1 + s2 + s3
+
+            # --- C. LOGIC GATE (The Veto System) ---
             
-            # 1. The Hard Veto (Safety Net)
-            # If the smart model is sure it's content, force content.
+            final_decision_is_ad = False
+            debug_status = "LIVE"
+
+            # RULE 1: The Veto (Safety Net)
+            # If the Main Judge (4.3s) is confident it's content (< 15%), force Content.
             if s2 < 0.15:
                 final_decision_is_ad = False
-                debug_reason = "VETO: Main Judge says Content"
+                debug_status = "VETO (Safe)"
 
-            # 2. The High-Confidence Trigger
-            # If total sum is high, AND the main judge isn't fighting it
+            # RULE 2: The Trigger
+            # If total sum is high (> 1.2) AND the Main Judge agrees somewhat (> 50%)
             elif total_score > 1.2 and s2 > 0.50:
                 final_decision_is_ad = True
-                debug_reason = "TRIGGER: High Confidence Sum"
+                debug_status = "AD DETECTED"
 
-            # 3. Default
+            # RULE 3: Default
             else:
                 final_decision_is_ad = False
-                debug_reason = "Stable"
+                debug_status = "MONITORING"
 
-            # --- C. GET FRAME ---
-            # We pass a fake high/low score to force VideoManager to comply
-            force_score = 1.0 if final_decision_is_ad else 0.0
-            frame = video_mgr.get_frame(force_score, threshold=0.5)
+            # --- D. EXECUTE SWITCH ---
+            # We pass a fake "1.0" (Ad) or "0.0" (Content) to the manager based on our decision
+            decision_score = 1.0 if final_decision_is_ad else 0.0
             
-            # --- D. DISPLAY ---
+            frame = video_mgr.get_frame(decision_score, threshold=0.5)
+
+            # --- E. DISPLAY ---
             if frame is not None:
                 cv2.imshow("Live Ad Replacer", frame)
+                cv2.waitKey(1) # Required to refresh the window image, but we ignore the return value
+                
 
-            if cv2.waitKey(1) & 0xFF == ord('q'):
+            if keyboard.is_pressed('q'):
+                print("Q pressed. Stopping...")
                 break
             
-            # Run loop at approx 30 FPS
             time.sleep(0.03)
 
     except KeyboardInterrupt:

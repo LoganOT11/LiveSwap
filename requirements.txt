@@ -21,3 +21,4 @@ python-vlc>=3.0.0    # Controls VLC Media Player to overlay filler video
 # --- Utilities ---
 matplotlib>=3.5.0    # (Optional) For debugging/viewing static spectrogram plots
 scikit-learn>=1.0.0  # (Optional) Useful for data splitting/metrics
+keyboard>=0.13.5     # (Optional) For keyboard input handling
