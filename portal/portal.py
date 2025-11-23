@@ -5,12 +5,19 @@ import json
 from fastapi import FastAPI, File, UploadFile, Form
 from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
+import cv2
+import numpy as np
 
 # --- CONFIGURATION ---
 app = FastAPI()
 UPLOAD_FOLDER = 'content'
 STATE_FILE = 'content_state.json'
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
+
+# NEW CONFIGURATION
+MAX_WIDTH = 800
+MAX_HEIGHT = 600
+IMAGE_EXTENSIONS = ('.png', '.jpg', '.jpeg')
 
 # CRITICAL STEP: Mount the content folder to serve files (images/videos)
 app.mount("/static", StaticFiles(directory=UPLOAD_FOLDER), name="static")
@@ -42,7 +49,7 @@ async def home():
         status_color = "green" if is_active else "gray"
         status_text = "Active" if is_active else "Disabled"
         
-        is_image = f.lower().endswith(('.png', '.jpg', '.jpeg'))
+        is_image = f.lower().endswith(IMAGE_EXTENSIONS)
         is_video = f.lower().endswith(('.mp4', '.avi', '.mov'))
         preview_tag = ""
         
@@ -176,13 +183,55 @@ async def home():
 
 @app.post("/upload")
 async def upload_file(file: UploadFile = File(...)):
-    file_location = os.path.join(UPLOAD_FOLDER, file.filename)
-    with open(file_location, "wb") as buffer:
-        shutil.copyfileobj(file.file, buffer)
+    filename = file.filename
+    file_location = os.path.join(UPLOAD_FOLDER, filename)
     
+    # Check if file is an image
+    if filename.lower().endswith(IMAGE_EXTENSIONS):
+        # --- NEW RESIZE LOGIC ---
+        
+        # 1. Read bytes and decode into OpenCV/NumPy format
+        contents = await file.read()
+        np_arr = np.frombuffer(contents, np.uint8)
+        image = cv2.imdecode(np_arr, cv2.IMREAD_COLOR)
+
+        # 2. Check size and calculate scaling factor
+        h, w = image.shape[:2]
+        
+        if w > MAX_WIDTH or h > MAX_HEIGHT:
+            scale = min(MAX_WIDTH / w, MAX_HEIGHT / h)
+            new_w = int(w * scale)
+            new_h = int(h * scale)
+            
+            # 3. Resize image and encode back to bytes
+            resized_image = cv2.resize(image, (new_w, new_h))
+            
+            # Use original file extension for encoding to keep quality/type
+            extension = os.path.splitext(filename)[1]
+            if extension.lower() == '.jpg':
+                encode_param = [int(cv2.IMWRITE_JPEG_QUALITY), 95]
+                _, buffer = cv2.imencode('.jpg', resized_image, encode_param)
+            else: # PNG, JPEG, etc. handled as default
+                _, buffer = cv2.imencode(extension, resized_image)
+            
+            # 4. Write the resized bytes
+            with open(file_location, "wb") as f:
+                f.write(buffer.tobytes())
+                
+        # --- END NEW RESIZE LOGIC ---
+        else:
+            # If not resizing, or if not an image, save raw file
+            with open(file_location, "wb") as buffer:
+                buffer.write(contents)
+    
+    else:
+        # Save video or other file types normally
+        with open(file_location, "wb") as buffer:
+            shutil.copyfileobj(file.file, buffer)
+
     # Enable new files by default
     state = get_state()
-    state[file.filename] = True
+    state[filename] = True
     save_state(state)
     return RedirectResponse(url="/", status_code=303)
 
