@@ -7,16 +7,14 @@ import json
 class VideoManager:
     def __init__(self, content_folder, stream_index=0):
         self.content_folder = content_folder
-        # CHANGED: Added cv2.CAP_DSHOW backend which offers lower latency on Windows
         self.cap = cv2.VideoCapture(stream_index, cv2.CAP_DSHOW) 
-        
-        self.cap.set(cv2.CAP_PROP_FRAME_WIDTH, 800)
-        self.cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 600)
-        # NEW: Set hardware buffer size to 1 (minimum) to prevent old frames from stacking up
+        # actual_width = self.cap.get(cv2.CAP_PROP_FRAME_WIDTH)
+        # actual_height = self.cap.get(cv2.CAP_PROP_FRAME_HEIGHT)
+        self.cap.set(cv2.CAP_PROP_FRAME_WIDTH, 1920)
+        self.cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 1080)
         self.cap.set(cv2.CAP_PROP_BUFFERSIZE, 1) 
         
         self.ad_cap, self.ad_img = None, None
-        # NEW: Flag to control whether we actively discard frames while an ad is playing
         self.drain_buffer = True 
 
     def _get_active_files(self):
@@ -50,13 +48,10 @@ class VideoManager:
             return [os.path.join(self.content_folder, f) for f in all_files]
 
     def get_frame(self, is_ad):
-        # --- AD MODE ---
+        # Ad detected
         if is_ad:
-            # NEW BLOCK: Buffer Draining Logic
-            # While the ad is showing, the capture card is still receiving frames.
-            # If we don't read them, they fill the buffer. When we switch back, we see old video.
             if self.drain_buffer and self.cap.isOpened():
-                self.cap.grab() # NEW: 'grab' reads and discards the frame without decoding (very fast)
+                self.cap.grab()
             
             if not self.ad_cap and self.ad_img is None:
                 files = self._get_active_files()
@@ -83,11 +78,11 @@ class VideoManager:
                 self.ad_cap.release()
                 self.ad_cap = None
         
-        # --- PASSTHROUGH MODE ---
+        # Passthrough mode
         if self.ad_cap: self.ad_cap.release(); self.ad_cap = None
         self.ad_img = None
         
-        # Because we drained the buffer above, this .read() will fetch a FRESH frame immediately
+        # buffer above, this .read() will fetch a FRESH frame immediately
         ret, frame = self.cap.read()
         return frame if ret else np.zeros((600, 800, 3), np.uint8)
 

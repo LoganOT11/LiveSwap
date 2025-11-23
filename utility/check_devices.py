@@ -23,8 +23,5 @@ def list_video_devices():
             print(f"❌ No camera found at Index {i}")
 
 if __name__ == "__main__":
-    # list_devices()
-    list_video_devices()
-
-
-
+    list_devices()
+    # list_video_devices()

@@ -154,7 +154,7 @@ def main():
 
             # --- D. APPLY COOLDOWN HYSTERESIS ---
             is_ad_detected = final_decision_score > settings.THRESHOLD
-            is_cooldown_active = (time.time() < ad_start_time + AD_COOLDOWN_SECONDS)
+            is_cooldown_active = (time.time() < ad_start_time + settings.AD_COOLDOWN_SECONDS)
             
             if is_ad_detected:
                 # If a new ad is detected, start/reset the timer and activate the state
