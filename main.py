@@ -35,12 +35,15 @@ def main():
         return
     
     supervisor = joblib.load(SUPERVISOR_PATH)
-    print("Supervisor Loaded.")
+    print("✅ Supervisor Loaded.")
 
     # 2. SETUP QUEUES (Need history for temporal features)
     results_fast = deque(maxlen=10)
     results_slow = deque(maxlen=10)
     results_exp = deque(maxlen=10)
+    
+    # NEW: Stability History for the Final Decision
+    stability_queue = deque(maxlen=STABILITY_BUFFER_SIZE)
 
     audio_feed_fast = queue.Queue()
     audio_feed_slow = queue.Queue()
@@ -51,19 +54,19 @@ def main():
 
     # 3. START AI THREADS (Code remains as is)
     t1 = threading.Thread(target=predict_live, kwargs={
-        "model_path": settings.MODEL_PATH, "thread_name": "Fast", "chunk_duration": 1.0,
+        "model_path": settings.MODEL_PATH, "chunk_duration": 1.0,
         "prediction_queue": results_fast, "input_audio_queue": audio_feed_fast
     }, daemon=True)
     t1.start()
 
     t2 = threading.Thread(target=predict_live, kwargs={
-        "model_path": settings.MODEL_PATH2, "thread_name": "Main", "chunk_duration": 4.3,
+        "model_path": settings.MODEL_PATH2, "chunk_duration": 4.3,
         "prediction_queue": results_slow, "input_audio_queue": audio_feed_slow
     }, daemon=True)
     t2.start()
 
     t3 = threading.Thread(target=predict_live, kwargs={
-        "model_path": settings.MODEL_PATH2, "thread_name": "Experimental", "chunk_duration": 1.0,
+        "model_path": settings.MODEL_PATH2, "chunk_duration": 1.0,
         "prediction_queue": results_exp, "input_audio_queue": audio_feed_exp
     }, daemon=True)
     t3.start()
@@ -184,7 +187,6 @@ def main():
                 
                 cv2.imshow("Live Ad Replacer", frame)
 
-            # 5. Handle Exit
             if cv2.waitKey(1) & 0xFF == ord('q'):
                 break
             
