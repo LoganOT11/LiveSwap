@@ -24,7 +24,7 @@ STABILITY_WINDOW_SECONDS = 5.0
 # Calculates buffer size needed to hold 5 seconds of predictions
 STABILITY_BUFFER_SIZE = int(STABILITY_WINDOW_SECONDS / LOOP_DELAY) 
 # Veto threshold: if 5s average is below 40%, ignore spikes
-STABILITY_LOCK_THRESHOLD = 0.40 
+STABILITY_LOCK_THRESHOLD = 0.6
 
 
 def main():
@@ -101,6 +101,10 @@ def main():
     cv2.namedWindow("Live Ad Replacer", cv2.WINDOW_NORMAL)
     cv2.resizeWindow("Live Ad Replacer", 800, 600)
 
+    AD_COOLDOWN_SECONDS = settings.AD_COOLDOWN_SECONDS
+    ad_start_time = 0.0
+    is_ad_active = False
+
     try:
         while True:
             # --- A. PREPARE FEATURES ---
@@ -145,16 +149,30 @@ def main():
             # Apply VETO: If long-term context is low, ignore current spike
             if long_term_avg < STABILITY_LOCK_THRESHOLD:
                 final_decision_score = 0.0 
-            elif long_term_avg > (1.0 - STABILITY_LOCK_THRESHOLD):
+            elif long_term_avg > (1.0 - (STABILITY_LOCK_THRESHOLD)):
                 final_decision_score = 1.0
-            # --- D. UPDATE AUDIO & VIDEO BASED ON STABLE SCORE ---
-            is_ad_state = final_decision_score > settings.THRESHOLD
-            
-            # Mute/Passthrough based on the stable decision
-            audio_state["mute"] = is_ad_state
 
-            # Update the video manager
-            frame = video_mgr.get_frame(is_ad_state)
+            # --- D. APPLY COOLDOWN HYSTERESIS ---
+            is_ad_detected = final_decision_score > settings.THRESHOLD
+            is_cooldown_active = (time.time() < ad_start_time + AD_COOLDOWN_SECONDS)
+            
+            if is_ad_detected:
+                # If a new ad is detected, start/reset the timer and activate the state
+                if not is_ad_active:
+                    ad_start_time = time.time()
+                is_ad_active = True
+            elif not is_ad_detected and is_cooldown_active:
+                # VETO: Detected content, but cooldown is running, so LOCK the state to True
+                is_ad_active = True
+            else:
+                # Cooldown expired and no ad detected, so allow switch to Content
+                is_ad_active = False
+
+            # Update Muting based on the locked state
+            audio_state["mute"] = is_ad_active
+
+            # Update the video manager using the stabilized state
+            frame = video_mgr.get_frame(is_ad_active)
 
             if frame is not None:
                 # Debug Info: Draw the stable score and the average
